@@ -1,0 +1,40 @@
+{
+  "name": "electron-debugger",
+  "version": "0.1.0",
+  "description": "MCP server for debugging Electron apps via Chrome DevTools Protocol",
+  "type": "module",
+  "bin": {
+    "electron-debugger": "./bin/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "bin"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.0",
+    "ws": "^8.18.2",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
+  },
+  "keywords": ["electron", "debug", "cdp", "mcp", "opencode"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oussamaexe/electron-debugger.git"
+  }
+}
