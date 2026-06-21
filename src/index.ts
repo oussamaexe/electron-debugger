@@ -7,6 +7,19 @@ import { getConfig } from './config.js';
 import { createMcpServer } from './mcp-server.js';
 import { registerAllTools } from './tools/index.js';
 
+export function parseExecArgs(rawArgs: string[]): Record<string, unknown> {
+  const parsedArgs: Record<string, unknown> = {};
+  for (const arg of rawArgs) {
+    const [key, ...rest] = arg.split('=');
+    let value: string | boolean | number = rest.join('=');
+    if (value === 'true') value = true;
+    else if (value === 'false') value = false;
+    else if (/^-?\d+(\.\d+)?$/.test(value)) value = Number(value);
+    parsedArgs[key] = value;
+  }
+  return parsedArgs;
+}
+
 export async function main(): Promise<void> {
   const config = getConfig({});
 
@@ -23,15 +36,7 @@ export async function main(): Promise<void> {
       const tools = registerAllTools(client);
       const tool = tools.find(t => t.name === argv.tool);
       if (!tool) throw new Error(`Unknown tool: ${argv.tool}`);
-      const parsedArgs: Record<string, unknown> = {};
-      const rawArgs = argv.args as string[] | undefined;
-      if (rawArgs) {
-        for (const arg of rawArgs) {
-          const [key, ...rest] = arg.split('=');
-          const value = rest.join('=');
-          parsedArgs[key] = value;
-        }
-      }
+      const parsedArgs = parseExecArgs((argv.args ?? []) as string[]);
       const result = await tool.handler(parsedArgs);
       for (const item of result.content) {
         if (item.type === 'text') console.log(item.text);
