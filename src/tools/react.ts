@@ -2,15 +2,15 @@ import type { CdpClient } from '../cdp-client.js';
 import type { ToolDefinition } from './index.js';
 
 const FIBER_WALKER_SCRIPT = `
-(function(maxDepth) {
-  var rootEl = document.getElementById('root') || document.body;
+(function(maxDepth, rootSelector) {
+  var rootEl = rootSelector ? document.querySelector(rootSelector) : (document.getElementById('root') || document.body);
   var fiberKey = Object.keys(rootEl).find(function(k) { return k.startsWith('__reactFiber'); });
   if (!fiberKey) return 'null';
   var fiber = rootEl[fiberKey];
   while (fiber && !fiber.memoizedState && fiber.child) fiber = fiber.child;
   if (!fiber) return 'null';
 
-  var TAG_MAP = { 0: 'function', 1: 'class', 2: 'host', 5: 'host', 6: 'host', 7: 'fragment', 8: 'portal', 9: 'suspense', 10: 'memo', 11: 'forward-ref', 13: 'suspense' };
+  var TAG_MAP = { 0: 'function', 1: 'class', 2: 'host', 5: 'host', 6: 'host', 7: 'fragment', 8: 'portal', 10: 'memo', 11: 'forward-ref', 13: 'suspense' };
 
   function walkFiber(f, depth) {
     if (!f || depth > maxDepth) return null;
@@ -41,7 +41,7 @@ const FIBER_WALKER_SCRIPT = `
   }
 
   return JSON.stringify(walkFiber(fiber, 0));
-})(%d)
+})(%d, %s)
 `;
 
 export function createReactTools(client: CdpClient): ToolDefinition[] {
@@ -52,12 +52,14 @@ export function createReactTools(client: CdpClient): ToolDefinition[] {
       inputSchema: {
         type: 'object',
         properties: {
+          rootSelector: { type: 'string', description: 'CSS selector for the root React element (default: #root, then body)' },
           maxDepth: { type: 'number', description: 'Maximum depth to traverse (default: 5, max: 20)' },
         },
       },
       handler: async (args: Record<string, unknown>) => {
         const maxDepth = Math.min((args.maxDepth as number) ?? 5, 20);
-        const script = FIBER_WALKER_SCRIPT.replace('%d', String(maxDepth));
+        const rootSelector = (args.rootSelector as string) ?? 'null';
+        const script = FIBER_WALKER_SCRIPT.replace('%d', String(maxDepth)).replace('%s', rootSelector === 'null' ? 'null' : JSON.stringify(rootSelector));
         const result = await client.send<{ result: { value: string } }>('Runtime.evaluate', {
           expression: script,
           returnByValue: true,

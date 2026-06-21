@@ -43,7 +43,13 @@ export function createVisualTools(client: CdpClient): ToolDefinition[] {
 
         const screenshotPng = PNG.sync.read(Buffer.from(screenshot.data, 'base64'));
 
-        const baselineBuffer = await readFile(baselinePath);
+        let baselineBuffer: Buffer;
+        try {
+          baselineBuffer = await readFile(baselinePath);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') throw new Error(`Baseline not found: ${baselinePath}`);
+          throw err;
+        }
         const baselinePng = PNG.sync.read(baselineBuffer);
 
         const width = Math.min(screenshotPng.width, baselinePng.width);

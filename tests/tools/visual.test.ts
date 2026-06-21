@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createVisualTools } from '../../src/tools/visual.js';
 import type { CdpClient } from '../../src/cdp-client.js';
-import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, unlinkSync, mkdtempSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
@@ -83,5 +83,35 @@ describe('Visual tools', () => {
     const data = JSON.parse(result.content[0].text);
     expect(data.pass).toBe(false);
     expect(data.mismatchPercentage).toBeGreaterThan(0);
+  });
+
+  it('writes diff file when outputDiff provided', async () => {
+    const png = new PNG({ width: 2, height: 2 });
+    png.data[0] = 255; png.data[1] = 0; png.data[2] = 0; png.data[3] = 255;
+    png.data[4] = 255; png.data[5] = 0; png.data[6] = 0; png.data[7] = 255;
+    png.data[8] = 255; png.data[9] = 0; png.data[10] = 0; png.data[11] = 255;
+    png.data[12] = 255; png.data[13] = 0; png.data[14] = 0; png.data[15] = 255;
+    const baselinePath = join(tmpDir, 'baseline.png');
+    writeFileSync(baselinePath, PNG.sync.write(png));
+
+    const diffPath = join(tmpDir, 'diff.png');
+
+    const mockClient = {
+      send: (method: string) => {
+        if (method === 'Page.captureScreenshot') {
+          const samePng = new PNG({ width: 2, height: 2 });
+          samePng.data[0] = 255; samePng.data[1] = 0; samePng.data[2] = 0; samePng.data[3] = 255;
+          samePng.data[4] = 255; samePng.data[5] = 0; samePng.data[6] = 0; samePng.data[7] = 255;
+          samePng.data[8] = 255; samePng.data[9] = 0; samePng.data[10] = 0; samePng.data[11] = 255;
+          samePng.data[12] = 255; samePng.data[13] = 0; samePng.data[14] = 0; samePng.data[15] = 255;
+          return Promise.resolve({ data: PNG.sync.write(samePng).toString('base64') });
+        }
+        return Promise.resolve({});
+      },
+    } as unknown as CdpClient;
+
+    const tools = createVisualTools(mockClient);
+    await tools[0].handler({ baselinePath, outputDiff: diffPath });
+    expect(existsSync(diffPath)).toBe(true);
   });
 });
