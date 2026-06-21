@@ -5,6 +5,7 @@ interface CdpNode {
   nodeType: number;
   nodeName: string;
   nodeValue?: string;
+  childNodeCount?: number;
   attributes?: string[];
   children?: CdpNode[];
   isSVG?: boolean;
@@ -127,6 +128,62 @@ export function createDomTools(client: CdpClient): ToolDefinition[] {
           content: [{
             type: 'text',
             text: JSON.stringify({ selector, content, padding, border, margin, width, height }, null, 2),
+          }],
+        };
+      },
+    },
+
+    {
+      name: 'get-page-summary',
+      description: 'Get a lightweight overview of the current page state — title, URL, viewport, scroll position, element counts, and top-level DOM structure. A single call to understand the full window state.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: async () => {
+        const [docInfo, viewport, counts, doc] = await Promise.all([
+          client.send<{ result: { value: { title: string; url: string } } }>('Runtime.evaluate', {
+            expression: '({ title: document.title, url: document.location.href })',
+            returnByValue: true,
+          }),
+          client.send<{ result: { value: { width: number; height: number; scrollX: number; scrollY: number } } }>('Runtime.evaluate', {
+            expression: '({ width: window.innerWidth, height: window.innerHeight, scrollX: window.scrollX, scrollY: window.scrollY })',
+            returnByValue: true,
+          }),
+          client.send<{ result: { value: { buttons: number; inputs: number; links: number; images: number } } }>('Runtime.evaluate', {
+            expression: `({
+              buttons: document.querySelectorAll('button, [role="button"]').length,
+              inputs: document.querySelectorAll('input, textarea, select').length,
+              links: document.querySelectorAll('a[href]').length,
+              images: document.querySelectorAll('img').length,
+            })`,
+            returnByValue: true,
+          }),
+          client.send<{ root: CdpNode }>('DOM.getDocument', { depth: 1 }),
+        ]);
+
+        const structure = formatNode(doc.root);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              title: docInfo.result.value.title,
+              url: docInfo.result.value.url,
+              viewport: {
+                width: viewport.result.value.width,
+                height: viewport.result.value.height,
+              },
+              scroll: {
+                x: viewport.result.value.scrollX,
+                y: viewport.result.value.scrollY,
+              },
+              elements: {
+                total: doc.root.childNodeCount ?? 0,
+                buttons: counts.result.value.buttons,
+                inputs: counts.result.value.inputs,
+                links: counts.result.value.links,
+                images: counts.result.value.images,
+              },
+              structure,
+            }, null, 2),
           }],
         };
       },
