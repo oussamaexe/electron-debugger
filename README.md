@@ -1,18 +1,16 @@
 # electron-debugger
 
-Debug any Electron app via Chrome DevTools Protocol (CDP) — no code changes required. Provides an [MCP](https://modelcontextprotocol.io) server for AI tool integration and a CLI for direct use.
+**Status: Work in progress.** APIs and tool set are evolving.
 
-## Features
+MCP server for debugging Electron apps via Chrome DevTools Protocol (CDP).
 
-- **Zero-setup debugging** — works with any Electron app running with `--remote-debugging-port`
-- **DOM inspection** — snapshot page structure, get element bounding boxes
-- **Style inspection** — get computed CSS styles per element
-- **Screenshots** — full page or per-element screenshots (PNG/JPEG)
-- **Console access** — retrieve renderer process console logs
-- **Performance metrics** — FPS, memory usage, DOM node counts
-- **Element interaction** — click, type text, highlight elements
-- **Window listing** — enumerate all open BrowserWindows
-- **Dual interface** — MCP server (stdio) for AI tools, CLI for scripting
+## Prerequisites
+
+Your Electron app must be running with remote debugging:
+
+```bash
+/path/to/your-electron-app --remote-debugging-port=9222
+```
 
 ## Installation
 
@@ -26,19 +24,7 @@ Or run directly:
 npx electron-debugger mcp
 ```
 
-## Prerequisites
-
-Your Electron app must **already be running** with the remote debugging port enabled:
-
-```bash
-/path/to/your-electron-app --remote-debugging-port=9222
-```
-
-> Some apps (VS Code, Slack, Discord) already ship with DevTools support. Check your app's docs.
-
 ## Configuration
-
-All settings have sensible defaults. Override via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -47,13 +33,13 @@ All settings have sensible defaults. Override via environment variables:
 
 ## Usage
 
-### MCP Server (for AI tools)
+### MCP Server
 
 ```bash
 electron-debugger mcp
 ```
 
-The MCP server starts a stdio-based server. Configure your AI assistant to use it as an MCP tool. For opencode, add to `opencode.json`:
+For opencode, add to `opencode.json`:
 
 ```json
 {
@@ -69,13 +55,8 @@ The MCP server starts a stdio-based server. Configure your AI assistant to use i
 ### CLI
 
 ```bash
-# Get a DOM snapshot
 electron-debugger exec get-dom-snapshot depth=3
-
-# Click an element
 electron-debugger exec click-element selector=button.submit
-
-# Take a screenshot
 electron-debugger exec take-screenshot format=png
 ```
 
@@ -83,11 +64,11 @@ electron-debugger exec take-screenshot format=png
 
 | Tool | Description |
 |---|---|
-| `get-dom-snapshot` | Get DOM tree snapshot with optional depth |
+| `get-dom-snapshot` | Get DOM tree snapshot |
 | `get-element-box` | Get bounding box for a CSS selector |
-| `get-element-styles` | Get computed styles (optionally filtered by property) |
-| `take-screenshot` | Capture page or element screenshot (base64 PNG/JPEG) |
-| `get-console-logs` | Retrieve recent console entries |
+| `get-element-styles` | Get computed styles |
+| `take-screenshot` | Capture page or element screenshot |
+| `get-console-logs` | Retrieve console entries |
 | `get-metrics` | Get performance metrics (FPS, memory, DOM nodes) |
 | `click-element` | Click an element by CSS selector |
 | `type-text` | Type text into an input field |
@@ -96,11 +77,11 @@ electron-debugger exec take-screenshot format=png
 
 ## How It Works
 
-1. Your Electron app exposes a CDP WebSocket via `--remote-debugging-port`
-2. `electron-debugger` discovers page targets through the HTTP discovery endpoint (`http://127.0.0.1:9222/json`)
-3. It connects to the first `page` target via WebSocket
-4. All tools communicate using Chrome DevTools Protocol commands
-5. The MCP server exposes these as tool definitions that AI assistants can discover and call
+1. Electron app exposes a CDP WebSocket via `--remote-debugging-port`
+2. `electron-debugger` discovers page targets at `http://127.0.0.1:9222/json`
+3. Connects to the first `page` target via WebSocket
+4. Tools communicate using Chrome DevTools Protocol commands
+5. MCP server exposes these as tool definitions for AI assistants
 
 ## Development
 
