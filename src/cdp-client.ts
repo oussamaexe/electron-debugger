@@ -2,10 +2,13 @@ import WebSocket from 'ws';
 import { getConfig, type DebugConfig, type ConfigOverrides } from './config.js';
 import type { CdpTarget, CdpResponse } from './types.js';
 
+const DEFAULT_REQUEST_TIMEOUT = 15000;
+
 export class CdpClient {
   private ws: WebSocket | null = null;
   private messageId = 1;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private timeouts = new Map<number, ReturnType<typeof setTimeout>>();
   private config: DebugConfig;
   private target: CdpTarget | null = null;
   private resolveDisconnect: (() => void) | null = null;
@@ -48,14 +51,20 @@ export class CdpClient {
     });
   }
 
-  async send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
+  async send<T = unknown>(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
     if (!this.isConnected()) {
       await this.connect();
     }
     if (!this.ws) throw new Error('Not connected');
+    const timeout = timeoutMs ?? DEFAULT_REQUEST_TIMEOUT;
     return new Promise((resolve, reject) => {
       const id = this.nextId();
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      this.timeouts.set(id, setTimeout(() => {
+        this.pending.delete(id);
+        this.timeouts.delete(id);
+        reject(new Error(`CDP request timed out after ${timeout}ms: ${method}`));
+      }, timeout));
       this.ws!.send(JSON.stringify({ id, method, params: params ?? {} }));
     }) as Promise<T>;
   }
@@ -122,6 +131,8 @@ export class CdpClient {
       if (message.id && this.pending.has(message.id)) {
         const pendingEntry = this.pending.get(message.id)!;
         this.pending.delete(message.id);
+        const timeout = this.timeouts.get(message.id);
+        if (timeout) { clearTimeout(timeout); this.timeouts.delete(message.id); }
         if (message.error) pendingEntry.reject(new Error(message.error.message));
         else pendingEntry.resolve(message.result);
       }
@@ -135,5 +146,9 @@ export class CdpClient {
       pendingEntry.reject(err);
     }
     this.pending.clear();
+    for (const [, timeout] of this.timeouts) {
+      clearTimeout(timeout);
+    }
+    this.timeouts.clear();
   }
 }
