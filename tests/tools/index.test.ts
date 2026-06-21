@@ -3,11 +3,12 @@ import { registerAllTools } from '../../src/tools/index.js';
 import type { CdpClient } from '../../src/cdp-client.js';
 
 describe('Tool registry', () => {
-  it('registers all 13 tool definitions', () => {
+  it('registers all 14 tool definitions', () => {
     const mockClient = { send: () => Promise.resolve({}), discoverTargets: () => Promise.resolve([]) } as unknown as CdpClient;
     const tools = registerAllTools(mockClient);
     const names = tools.map(t => t.name).sort();
     expect(names).toEqual([
+      'assert-visual-regression',
       'click-element',
       'evaluate-script',
       'get-console-logs',

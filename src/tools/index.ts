@@ -8,6 +8,7 @@ import { createInteractTools } from './interact.js';
 import { createWindowsTools } from './windows.js';
 import { createExecutionTools } from './execution.js';
 import { createReactTools } from './react.js';
+import { createVisualTools } from './visual.js';
 
 export interface ToolDefinition {
   name: string;
@@ -33,5 +34,6 @@ export function registerAllTools(client: CdpClient): ToolDefinition[] {
     ...createWindowsTools(client),
     ...createExecutionTools(client),
     ...createReactTools(client),
+    ...createVisualTools(client),
   ];
 }
