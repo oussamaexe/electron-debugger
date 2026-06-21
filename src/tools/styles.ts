@@ -21,6 +21,7 @@ export function createStylesTools(client: CdpClient): ToolDefinition[] {
       handler: async (args: Record<string, unknown>) => {
         const selector = args.selector as string;
         const properties = args.properties as string[] | undefined;
+        await client.send('CSS.enable');
         const nodeId = await resolveNodeId(client, selector);
 
         const styles = await client.send<{ computedStyle: Array<{ name: string; value: string }> }>('CSS.getComputedStyleForNode', { nodeId });
