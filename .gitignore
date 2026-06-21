@@ -6,3 +6,4 @@ dist/
 # AI / agent config
 AGENTS.md
 .opencode/
+docs/
