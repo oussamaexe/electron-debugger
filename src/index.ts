@@ -10,8 +10,8 @@ import { registerAllTools } from './tools/index.js';
 export async function main(): Promise<void> {
   const config = getConfig({});
 
-  yargs(hideBin(process.argv))
-    .command('mcp', 'Start MCP server', async () => {
+  await yargs(hideBin(process.argv))
+    .command('mcp', 'Start MCP server (stdio)', async () => {
       const client = new CdpClient();
       await createMcpServer(client, config);
     })
@@ -20,7 +20,6 @@ export async function main(): Promise<void> {
       yargs.positional('args', { type: 'string', array: true, describe: 'Key=value arguments' });
     }, async (argv) => {
       const client = new CdpClient();
-      await client.connect();
       const tools = registerAllTools(client);
       const tool = tools.find(t => t.name === argv.tool);
       if (!tool) throw new Error(`Unknown tool: ${argv.tool}`);
@@ -34,8 +33,9 @@ export async function main(): Promise<void> {
         }
       }
       const result = await tool.handler(parsedArgs);
-      console.log(JSON.stringify(result, null, 2));
-      await client.disconnect();
+      for (const item of result.content) {
+        if (item.type === 'text') console.log(item.text);
+      }
     })
     .demandCommand(1, 'Usage: electron-debugger <mcp|exec>')
     .strict()

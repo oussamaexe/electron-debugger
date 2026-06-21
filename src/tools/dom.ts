@@ -1,7 +1,7 @@
 import type { CdpClient } from '../cdp-client.js';
 import type { ToolDefinition } from './index.js';
 
-async function resolveNodeId(client: CdpClient, selector: string): Promise<number> {
+export async function resolveNodeId(client: CdpClient, selector: string): Promise<number> {
   const doc = await client.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 });
   const result = await client.send<{ nodeId: number }>('DOM.querySelector', {
     nodeId: doc.root.nodeId,

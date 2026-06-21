@@ -1,5 +1,13 @@
 import type { CdpClient } from '../cdp-client.js';
 import type { ToolDefinition } from './index.js';
+import { resolveNodeId } from './dom.js';
+
+async function getElementCenter(client: CdpClient, selector: string): Promise<[number, number]> {
+  const nodeId = await resolveNodeId(client, selector);
+  const model = await client.send<{ model: { content: number[] } }>('DOM.getBoxModel', { nodeId });
+  const [x, y] = model.model.content;
+  return [x + 1, y + 1];
+}
 
 export function createInteractTools(client: CdpClient): ToolDefinition[] {
   return [
@@ -11,16 +19,12 @@ export function createInteractTools(client: CdpClient): ToolDefinition[] {
       },
       handler: async (args: Record<string, unknown>) => {
         const selector = args.selector as string;
-        const doc = await client.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 });
-        const node = await client.send<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector });
-        if (!node.nodeId) throw new Error(`Element not found: "${selector}"`);
-        const model = await client.send<{ model: { content: number[] } }>('DOM.getBoxModel', { nodeId: node.nodeId });
-        const [x, y] = model.model.content;
+        const [x, y] = await getElementCenter(client, selector);
 
-        await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x + 1, y: y + 1, button: 'left', clickCount: 1 });
-        await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + 1, y: y + 1, button: 'left', clickCount: 1 });
+        await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
 
-        return { content: [{ type: 'text', text: JSON.stringify({ clicked: selector, x: x + 1, y: y + 1 }) }] };
+        return { content: [{ type: 'text', text: JSON.stringify({ clicked: selector, x, y }) }] };
       },
     },
     {
@@ -37,15 +41,10 @@ export function createInteractTools(client: CdpClient): ToolDefinition[] {
         const selector = args.selector as string;
         const text = args.text as string;
         const clearFirst = args.clearFirst as boolean | undefined;
+        const [x, y] = await getElementCenter(client, selector);
 
-        const doc = await client.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 });
-        const node = await client.send<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector });
-        if (!node.nodeId) throw new Error(`Element not found: "${selector}"`);
-        const model = await client.send<{ model: { content: number[] } }>('DOM.getBoxModel', { nodeId: node.nodeId });
-        const [x, y] = model.model.content;
-
-        await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x + 1, y: y + 1, button: 'left', clickCount: 1 });
-        await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + 1, y: y + 1, button: 'left', clickCount: 1 });
+        await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
 
         if (clearFirst !== false) {
           await client.send('Input.dispatchKeyEvent', { type: 'keyDown', modifiers: 2, windowsVirtualKeyCode: 65, code: 'KeyA', key: 'a' });
@@ -70,20 +69,23 @@ export function createInteractTools(client: CdpClient): ToolDefinition[] {
       },
       handler: async (args: Record<string, unknown>) => {
         const selector = args.selector as string;
-        const duration = args.duration as number | undefined;
-
-        const doc = await client.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 });
-        const node = await client.send<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector });
-        if (!node.nodeId) throw new Error(`Element not found: "${selector}"`);
+        const color = args.color as string | undefined;
+        const nodeId = await resolveNodeId(client, selector);
 
         await client.send('Overlay.enable');
         await client.send('Overlay.highlightNode', {
-          nodeId: node.nodeId,
-          highlightConfig: { contentColor: { r: 255, g: 0, b: 0, a: 0.3 }, paddingColor: { r: 0, g: 255, b: 0, a: 0.3 } },
+          nodeId,
+          highlightConfig: { contentColor: parseColor(color ?? 'rgba(255,0,0,0.3)'), paddingColor: { r: 0, g: 255, b: 0, a: 0.3 } },
         });
 
-        return { content: [{ type: 'text', text: JSON.stringify({ highlighted: selector, duration: duration ?? 2000 }) }] };
+        return { content: [{ type: 'text', text: JSON.stringify({ highlighted: selector, duration: args.duration ?? 2000 }) }] };
       },
     },
   ];
+}
+
+function parseColor(rgba: string): { r: number; g: number; b: number; a: number } {
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!match) return { r: 255, g: 0, b: 0, a: 0.3 };
+  return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]), a: match[4] ? Number(match[4]) : 1 };
 }

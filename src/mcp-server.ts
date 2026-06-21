@@ -6,8 +6,6 @@ import { registerAllTools } from './tools/index.js';
 import type { DebugConfig } from './config.js';
 
 export async function createMcpServer(client: CdpClient, config: DebugConfig): Promise<Server> {
-  await client.connect();
-
   const server = new Server(
     { name: 'electron-debugger', version: '0.1.0' },
     { capabilities: { tools: {} } },

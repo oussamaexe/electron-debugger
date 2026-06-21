@@ -4,7 +4,7 @@ import type { CdpTarget, CdpResponse } from './types.js';
 
 export class CdpClient {
   private ws: WebSocket | null = null;
-  private msgId = 1;
+  private messageId = 1;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private config: DebugConfig;
   private target: CdpTarget | null = null;
@@ -16,7 +16,7 @@ export class CdpClient {
   }
 
   nextId(): number {
-    return this.msgId++;
+    return this.messageId++;
   }
 
   discoveryUrl(): string {
@@ -49,6 +49,9 @@ export class CdpClient {
   }
 
   async send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
+    if (!this.isConnected()) {
+      await this.connect();
+    }
     if (!this.ws) throw new Error('Not connected');
     return new Promise((resolve, reject) => {
       const id = this.nextId();
@@ -59,8 +62,8 @@ export class CdpClient {
 
   async discoverTargets(): Promise<CdpTarget[]> {
     try {
-      const resp = await fetch(this.discoveryUrl());
-      return resp.json() as Promise<CdpTarget[]>;
+      const response = await fetch(this.discoveryUrl());
+      return response.json() as Promise<CdpTarget[]>;
     } catch (err) {
       throw new Error(
         `Failed to connect to Electron debugger at ${this.discoveryUrl()}. ` +
@@ -115,12 +118,12 @@ export class CdpClient {
 
   private handleMessage(data: Buffer): void {
     try {
-      const msg = JSON.parse(data.toString()) as CdpResponse;
-      if (msg.id && this.pending.has(msg.id)) {
-        const cb = this.pending.get(msg.id)!;
-        this.pending.delete(msg.id);
-        if (msg.error) cb.reject(new Error(msg.error.message));
-        else cb.resolve(msg.result);
+      const message = JSON.parse(data.toString()) as CdpResponse;
+      if (message.id && this.pending.has(message.id)) {
+        const pendingEntry = this.pending.get(message.id)!;
+        this.pending.delete(message.id);
+        if (message.error) pendingEntry.reject(new Error(message.error.message));
+        else pendingEntry.resolve(message.result);
       }
     } catch {
       // Malformed CDP message — ignore
@@ -128,8 +131,8 @@ export class CdpClient {
   }
 
   private rejectAllPending(err: Error): void {
-    for (const [, cb] of this.pending) {
-      cb.reject(err);
+    for (const [, pendingEntry] of this.pending) {
+      pendingEntry.reject(err);
     }
     this.pending.clear();
   }
