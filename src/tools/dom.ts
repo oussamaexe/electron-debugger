@@ -1,6 +1,59 @@
 import type { CdpClient } from '../cdp-client.js';
 import type { ToolDefinition } from './index.js';
 
+interface CdpNode {
+  nodeType: number;
+  nodeName: string;
+  nodeValue?: string;
+  attributes?: string[];
+  children?: CdpNode[];
+  isSVG?: boolean;
+}
+
+export function formatNode(node: CdpNode, depth = 0): string {
+  const indent = '  '.repeat(depth);
+
+  if (node.nodeType === 3) {
+    const text = (node.nodeValue ?? '').trim();
+    return text ? `${indent}${text}` : '';
+  }
+
+  const tagName = node.nodeName.toLowerCase();
+  const attrs = formatAttributes(node.attributes ?? []);
+  const children = node.children ?? [];
+
+  if (children.length === 0) {
+    return `${indent}<${tagName}${attrs} />`;
+  }
+
+  if (children.length === 1 && children[0].nodeType === 3) {
+    const text = (children[0].nodeValue ?? '').trim();
+    return `${indent}<${tagName}${attrs}>${text}</${tagName}>`;
+  }
+
+  const childLines: string[] = [];
+  for (const child of children) {
+    const formatted = formatNode(child, depth + 1);
+    if (formatted) childLines.push(formatted);
+  }
+
+  if (childLines.length === 0) {
+    return `${indent}<${tagName}${attrs}></${tagName}>`;
+  }
+
+  return `${indent}<${tagName}${attrs}>\n${childLines.join('\n')}\n${indent}</${tagName}>`;
+}
+
+function formatAttributes(attributes: string[]): string {
+  let result = '';
+  for (let i = 0; i < attributes.length; i += 2) {
+    const key = attributes[i];
+    const value = (attributes[i + 1] ?? '').replace(/"/g, '&quot;');
+    result += ` ${key}="${value}"`;
+  }
+  return result;
+}
+
 export async function resolveNodeId(client: CdpClient, selector: string): Promise<number> {
   const doc = await client.send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0 });
   const result = await client.send<{ nodeId: number }>('DOM.querySelector', {
@@ -30,13 +83,15 @@ export function createDomTools(client: CdpClient): ToolDefinition[] {
         if (!selector) throw new Error('selector is required');
 
         const nodeId = await resolveNodeId(client, selector);
-        const nodeDetail = await client.send<{ node: unknown }>('DOM.describeNode', {
+        const nodeDetail = await client.send<{ node: CdpNode }>('DOM.describeNode', {
           nodeId,
           depth: maxDepth ?? -1,
         });
 
+        const tree = formatNode(nodeDetail.node);
+
         return {
-          content: [{ type: 'text', text: JSON.stringify(nodeDetail.node, null, 2) }],
+          content: [{ type: 'text', text: tree }],
         };
       },
     },
