@@ -1,6 +1,6 @@
 # electron-debugger
 
-**Status: Work in progress.** APIs and tool set are evolving.
+**Status: Work in progress.** APIs and tool set are evolving. Not published to npm yet — only installable from source.
 
 MCP server for debugging Electron apps via Chrome DevTools Protocol (CDP).
 
