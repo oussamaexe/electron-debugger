@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vite/
+
+# AI / agent config
+AGENTS.md
+.opencode/
