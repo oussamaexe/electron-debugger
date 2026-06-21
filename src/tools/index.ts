@@ -6,6 +6,7 @@ import { createConsoleTools } from './console.js';
 import { createMetricsTools } from './metrics.js';
 import { createInteractTools } from './interact.js';
 import { createWindowsTools } from './windows.js';
+import { createExecutionTools } from './execution.js';
 
 export interface ToolDefinition {
   name: string;
@@ -29,5 +30,6 @@ export function registerAllTools(client: CdpClient): ToolDefinition[] {
     ...createMetricsTools(client),
     ...createInteractTools(client),
     ...createWindowsTools(client),
+    ...createExecutionTools(client),
   ];
 }
