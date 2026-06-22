@@ -1,6 +1,6 @@
-# electron-debugger
+# @oussamaexe/electron-debugger
 
-**Status: Work in progress.** APIs and tool set are evolving. Not published to npm yet — only installable from source.
+**Status: v3.0.0** — Published on npm as `@oussamaexe/electron-debugger`.
 
 MCP server for debugging Electron apps via Chrome DevTools Protocol (CDP).
 
@@ -15,13 +15,13 @@ Your Electron app must be running with remote debugging:
 ## Installation
 
 ```bash
-npm install -g electron-debugger
+npm install -g @oussamaexe/electron-debugger
 ```
 
 Or run directly:
 
 ```bash
-npx electron-debugger mcp
+npx @oussamaexe/electron-debugger mcp
 ```
 
 ## Configuration
@@ -46,7 +46,7 @@ For opencode, add to `opencode.json`:
   "mcpServers": {
     "electron-debugger": {
       "command": "npx",
-      "args": ["electron-debugger", "mcp"]
+      "args": ["@oussamaexe/electron-debugger", "mcp"]
     }
   }
 }
