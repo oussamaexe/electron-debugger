@@ -5,8 +5,8 @@ import { resolveNodeId } from './dom.js';
 async function getElementCenter(client: CdpClient, selector: string): Promise<[number, number]> {
   const nodeId = await resolveNodeId(client, selector);
   const model = await client.send<{ model: { content: number[] } }>('DOM.getBoxModel', { nodeId });
-  const [x, y] = model.model.content;
-  return [x + 1, y + 1];
+  const [x1, y1, , , x3, y3] = model.model.content;
+  return [(x1 + x3) / 2, (y1 + y3) / 2];
 }
 
 export function createInteractTools(client: CdpClient): ToolDefinition[] {

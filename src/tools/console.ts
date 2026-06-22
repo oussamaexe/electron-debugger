@@ -1,26 +1,66 @@
 import type { CdpClient } from '../cdp-client.js';
 import type { ToolDefinition } from './index.js';
 
-const INTERCEPT_SCRIPT = `
-(function() {
-  if (window.__consoleLogs) return;
-  window.__consoleLogs = [];
-  var levels = ['log', 'warn', 'error', 'info', 'debug'];
-  levels.forEach(function(level) {
-    var orig = console[level];
-    console[level] = function() {
-      window.__consoleLogs.push({
-        level: level === 'log' ? 'info' : level === 'warn' ? 'warning' : level === 'error' ? 'error' : level === 'debug' ? 'debug' : 'info',
-        text: Array.from(arguments).map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '),
-        timestamp: Date.now(),
-      });
-      return orig.apply(console, arguments);
-    };
-  });
-})();
-`;
+const LEVEL_MAP: Record<string, string> = {
+  log: 'info',
+  info: 'info',
+  warn: 'warning',
+  error: 'error',
+  debug: 'debug',
+  dir: 'info',
+  dirxml: 'info',
+  table: 'info',
+  trace: 'info',
+  assert: 'error',
+};
+
+interface ConsoleEntry {
+  level: string;
+  text: string;
+  timestamp: number;
+}
+
+interface RemoteObject {
+  type: string;
+  value?: unknown;
+  description?: string;
+  objectId?: string;
+}
+
+function formatRemoteObject(arg: RemoteObject): string {
+  switch (arg.type) {
+    case 'string': return String(arg.value ?? '');
+    case 'number': return String(arg.value);
+    case 'boolean': return String(arg.value);
+    case 'undefined': return 'undefined';
+    case 'object':
+      if (arg.value === null) return 'null';
+      return arg.description ?? String(arg.value ?? '');
+    case 'function': return arg.description ?? 'function()';
+    default: return arg.description ?? String(arg.value ?? '');
+  }
+}
 
 export function createConsoleTools(client: CdpClient): ToolDefinition[] {
+  const buffer: ConsoleEntry[] = [];
+  let initialized = false;
+
+  async function ensureListening(): Promise<void> {
+    if (initialized) return;
+    await client.send('Runtime.enable');
+    client.on('Runtime.consoleAPICalled', (params: Record<string, unknown>) => {
+      const type = params.type as string;
+      const args = params.args as RemoteObject[] | undefined;
+      const timestamp = params.timestamp as number | undefined;
+      buffer.push({
+        level: LEVEL_MAP[type] ?? 'info',
+        text: (args ?? []).map(formatRemoteObject).join(' '),
+        timestamp: timestamp ?? Date.now(),
+      });
+    });
+    initialized = true;
+  }
+
   return [
     {
       name: 'get-console-logs',
@@ -37,20 +77,9 @@ export function createConsoleTools(client: CdpClient): ToolDefinition[] {
         const level = args.level as string | undefined;
         const limit = maxEntries ?? 50;
 
-        await client.send('Runtime.evaluate', { expression: INTERCEPT_SCRIPT, returnByValue: true });
+        await ensureListening();
 
-        const result = await client.send<{ result: { value: string } }>('Runtime.evaluate', {
-          expression: 'JSON.stringify(window.__consoleLogs.splice(0))',
-          returnByValue: true,
-        });
-
-        let messages: Array<{ level: string; text: string; timestamp: number }> = [];
-        try {
-          messages = JSON.parse(result.result.value);
-        } catch {
-          // malformed response — return empty
-        }
-
+        let messages = buffer.splice(0);
         if (level && level !== 'all') messages = messages.filter(m => m.level === level);
         messages = messages.slice(-limit);
 

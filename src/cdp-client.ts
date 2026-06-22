@@ -13,6 +13,16 @@ export class CdpClient {
   private target: CdpTarget | null = null;
   private resolveDisconnect: (() => void) | null = null;
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  private listeners = new Map<string, Set<(params: Record<string, unknown>) => void>>();
+
+  on(method: string, callback: (params: Record<string, unknown>) => void): void {
+    if (!this.listeners.has(method)) this.listeners.set(method, new Set());
+    this.listeners.get(method)!.add(callback);
+  }
+
+  off(method: string, callback: (params: Record<string, unknown>) => void): void {
+    this.listeners.get(method)?.delete(callback);
+  }
 
   constructor(overrides?: ConfigOverrides) {
     this.config = getConfig(overrides ?? {});
@@ -135,6 +145,11 @@ export class CdpClient {
         if (timeout) { clearTimeout(timeout); this.timeouts.delete(message.id); }
         if (message.error) pendingEntry.reject(new Error(message.error.message));
         else pendingEntry.resolve(message.result);
+      } else if (message.method && this.listeners.has(message.method)) {
+        const callbacks = this.listeners.get(message.method)!;
+        for (const cb of callbacks) {
+          cb(message.params ?? {});
+        }
       }
     } catch {
       // Malformed CDP message — ignore

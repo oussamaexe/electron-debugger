@@ -2,6 +2,52 @@ import { describe, it, expect } from 'vitest';
 import { createDomTools, formatNode } from '../../src/tools/dom.js';
 import type { CdpClient } from '../../src/cdp-client.js';
 
+describe('resolveNodeId', () => {
+  it('resolves standard CSS selectors via DOM.querySelector', async () => {
+    const client = {
+      send: (method: string) => {
+        if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } });
+        if (method === 'DOM.querySelector') return Promise.resolve({ nodeId: 5 });
+        return Promise.resolve({});
+      },
+    } as unknown as CdpClient;
+    const { resolveNodeId } = await import('../../src/tools/dom.js');
+    await expect(resolveNodeId(client, 'button')).resolves.toBe(5);
+  });
+
+  it('falls back to JS evaluation for :contains() selectors', async () => {
+    let evaluateCalls = 0;
+    let querySelectorArgs: string[] = [];
+    const client = {
+      send: (method: string, params?: Record<string, unknown>) => {
+        if (method === 'DOM.getDocument') return Promise.resolve({ root: { nodeId: 1 } });
+        if (method === 'DOM.querySelector') {
+          querySelectorArgs.push((params as Record<string, unknown>).selector as string);
+          // First call (the :contains() selector) throws — invalid CSS syntax
+          if ((params as Record<string, unknown>).selector === 'button:contains("Save")') {
+            return Promise.reject(new Error('DOM Error while querying'));
+          }
+          // Subsequent calls for temp attribute lookup
+          if ((querySelectorArgs.filter(a => a.startsWith('[data-cdp-temp='))).length <= 2) {
+            return Promise.resolve({ nodeId: 42 });
+          }
+          return Promise.resolve({ nodeId: 0 });
+        }
+        if (method === 'Runtime.evaluate') {
+          evaluateCalls++;
+          return Promise.resolve({ result: { value: true } });
+        }
+        return Promise.resolve({});
+      },
+    } as unknown as CdpClient;
+    const { resolveNodeId } = await import('../../src/tools/dom.js');
+    const nodeId = await resolveNodeId(client, 'button:contains("Save")');
+    expect(nodeId).toBe(42);
+    // Should have evaluated JS to find by text and set temp attribute
+    expect(evaluateCalls).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('formatNode', () => {
   it('formats a simple element with text child', () => {
     const node = {
@@ -95,6 +141,50 @@ describe('formatNode', () => {
       ],
     };
     expect(formatNode(node)).toBe('<svg viewBox="0 0 24 24" class="icon">\n  <circle cx="12" cy="12" r="10" />\n</svg>');
+  });
+
+  it('filters nodes by text content with textFilter', () => {
+    const node = {
+      nodeType: 1,
+      nodeName: 'DIV',
+      attributes: ['id', 'root'],
+      children: [
+        { nodeType: 1, nodeName: 'NAV', attributes: [], children: [
+          { nodeType: 3, nodeName: '#text', nodeValue: 'Menu', children: [] },
+        ] },
+        { nodeType: 1, nodeName: 'MAIN', attributes: [], children: [
+          { nodeType: 1, nodeName: 'BUTTON', attributes: ['class', 'btn'], children: [
+            { nodeType: 3, nodeName: '#text', nodeValue: 'Click here', children: [] },
+          ] },
+        ] },
+      ],
+    };
+    const result = formatNode(node, 0, 'Click');
+    expect(result).toBe('<div id="root">\n  <main>\n    <button class="btn">Click here</button>\n  </main>\n</div>');
+  });
+
+  it('returns empty string when textFilter matches nothing', () => {
+    const node = {
+      nodeType: 1,
+      nodeName: 'DIV',
+      attributes: [],
+      children: [
+        { nodeType: 3, nodeName: '#text', nodeValue: 'Hello', children: [] },
+      ],
+    };
+    expect(formatNode(node, 0, 'Goodbye')).toBe('');
+  });
+
+  it('textFilter is case-insensitive', () => {
+    const node = {
+      nodeType: 1,
+      nodeName: 'DIV',
+      attributes: [],
+      children: [
+        { nodeType: 3, nodeName: '#text', nodeValue: 'HELLO World', children: [] },
+      ],
+    };
+    expect(formatNode(node, 0, 'hello')).toBe('<div>HELLO World</div>');
   });
 });
 

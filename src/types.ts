@@ -7,7 +7,9 @@ export interface CdpTarget {
 }
 
 export interface CdpResponse {
-  id: number;
+  id?: number;
+  method?: string;
+  params?: Record<string, unknown>;
   result?: Record<string, unknown>;
   error?: { code: number; message: string };
 }
