@@ -1,3 +1,5 @@
+[![English](https://img.shields.io/badge/English-README.md-green)](README.md)
+
 # @oussamaexe/electron-debugger
 
 **Status: v3.0.0** — Verfügbar auf npm als `@oussamaexe/electron-debugger`.
