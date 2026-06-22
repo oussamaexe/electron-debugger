@@ -75,6 +75,14 @@ electron-debugger exec take-screenshot format=png
 | `highlight-element` | Visually highlight an element |
 | `list-windows` | List all open BrowserWindows |
 
+## 1. The Big Picture — What This Thing Does
+
+![Big Picture](img/1.png)
+
+## 2. How It Connects — The Plumbing
+
+![How It Connects](img/2.png)
+
 ## How It Works
 
 1. Electron app exposes a CDP WebSocket via `--remote-debugging-port`
