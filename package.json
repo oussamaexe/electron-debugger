@@ -1,10 +1,10 @@
 {
-  "name": "electron-debugger",
-  "version": "0.1.0",
+  "name": "@oussamaexe/electron-debugger",
+  "version": "3.0.0",
   "description": "MCP server for debugging Electron apps via Chrome DevTools Protocol",
   "type": "module",
   "bin": {
-    "electron-debugger": "./bin/cli.js"
+    "electron-debugger": "bin/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -47,6 +47,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/oussamaexe/electron-debugger.git"
+    "url": "git+https://github.com/oussamaexe/electron-debugger.git"
   }
 }
